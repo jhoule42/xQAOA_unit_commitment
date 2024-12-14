@@ -1,6 +1,6 @@
 # xQAOA_unit_commitment
 Quantum algorithm for utility scale power grid optimization
-![Project Banner](images/header_image.png)
+![Project Banner](image.png)
 
 
 This project implements quantum and classical methods to solve the Unit Commitment problem, which optimizes the scheduling of power generation units to meet electricity demand while minimizing costs. The project explores hybrid quantum-classical algorithms using QAOA and classical optimization techniques.
