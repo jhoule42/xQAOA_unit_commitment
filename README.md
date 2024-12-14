@@ -13,7 +13,7 @@
 
 ---
 
-This project implements **quantum and classical methods** to solve the **Unit Commitment (UC)** problem, which involves optimizing the scheduling of power generation units to meet electricity demand while minimizing costs. It explores hybrid quantum-classical algorithms using **QAOA** and classical optimization techniques.
+This project implements **quantum and classical methods** to solve the **Unit Commitment (UC)** problem, which involves optimizing the scheduling of power generation units to meet electricity demand while minimizing costs. In this work we present a new method, **xQAOA**, allowing to solve the UC problem with an implementation using up to 127 qubits.
 
 ---
 
