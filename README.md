@@ -30,22 +30,18 @@ This project implements **quantum and classical methods** to solve the **Unit Co
 Three methods to solve the UC problem have been implemented as part of this project:
 
 **1. Multi-variable Optimization**
-- Inspired by the following papers: XXX
+- Inspired by the following papers: 
 - Observed limitations: Results are far from ideal
 - Requires optimizing as many additional parameters as the number of units
 - Potentially challenging to scale
 
 **2. ADMM (Alternating Direction Method of Multipliers)**
-- Provides good results, but with significant limitations
-- Relies too strongly on the classical solver
-- Quantum solver solves trivial problems
-- Unlikely to demonstrate quantum advantage
+- Implementation inspired by the following work: http://arxiv.org/abs/2001.02069.
+- The method provide good results when solving the UC problem, however relies to significantly on classical optimization and the quantum solver deal with trivial problems. It is then unlikely to provide any quantum advantage.
 
 **3. xQAOA**
-- Originally inspired by the following paper: XXX
-- Outperforms the two previous methods
-- Can be adapted to optimize with fewer additional parameters
-- Does not require optimization for each simulated unit
+- Implementation inspired by the following work: http://arxiv.org/abs/2108.08805.
+- Outperforms the two previous methods in accuracy. We have showned as part of this work that we can map the Knapsack problem the the UC problem using only one additional parameter to optimize. Can be easily scallable and we have implement the method on IBM_quebec quantum computer using up to 127 qubits.
 
 ## **File Structure**
 
