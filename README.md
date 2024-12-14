@@ -1,4 +1,9 @@
 # **xQAOA Unit Commitment**
+[![Python Versions](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Quantum](https://img.shields.io/badge/Quantum-QAOA-purple.svg)](https://qiskit.org/)
+[![Status](https://img.shields.io/badge/Status-In%20Development-orange.svg)](https://github.com/your-username/your-repo)
+
 
 *Quantum Algorithm for Utility-Scale Power Grid Optimization*
 
