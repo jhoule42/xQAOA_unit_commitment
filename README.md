@@ -40,7 +40,7 @@ Two methods to solve the UC problem have been implemented as part of this projec
 
 **2. xQAOA**
 - Implementation inspired by the following work: http://arxiv.org/abs/2108.08805.
-- We have showned as part of this work that we can map the Knapsack problem the the UC problem using only one additional parameter to optimize. Can be easily scallable and we have implement the method on IBM_quebec quantum computer using up to 127 qubits.
+- We have showned as part of this work that we can map the Knapsack problem the the UC problem using only one additional parameter to optimize.
 
 ## **File Structure**
 ```plaintext
