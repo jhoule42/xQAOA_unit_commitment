@@ -13,7 +13,7 @@
 
 ---
 
-This project implements **quantum and classical methods** to solve the **Unit Commitment (UC)** problem, which involves optimizing the scheduling of power generation units to meet electricity demand while minimizing costs. In this work we present a new method, **xQAOA**, allowing to solve the UC problem with an implementation using up to 127 qubits.
+This project implements **quantum and classical methods** to solve the **Unit Commitment (UC)** problem, which involves optimizing the scheduling of power generation units to meet electricity demand while minimizing costs. In this work we implement the **xQAOA** method, allowing to solve the UC problem on large scale quantum computers.
 
 ---
 
