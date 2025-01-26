@@ -36,7 +36,7 @@ Two methods to solve the UC problem have been implemented as part of this projec
 
 **1. ADMM (Alternating Direction Method of Multipliers)**
 - Implementation inspired by the following work: http://arxiv.org/abs/2001.02069.
-- The method provide good results when solving the UC problem, however relies to significantly on classical optimization and the quantum solver deal with trivial problems. It is then unlikely to provide any quantum advantage.
+- The method provide good results when solving the UC problem, however relies to significantly on classical optimization and the quantum solver deal with trivial problems. It is then unlikely to provide any quantum advantage in our case.
 
 **2. xQAOA**
 - Implementation inspired by the following work: http://arxiv.org/abs/2108.08805.
