@@ -32,25 +32,39 @@ This project implements **quantum and classical methods** to solve the **Unit Co
 
 ## **Method Description**
 
-Three methods to solve the UC problem have been implemented as part of this project:
+Two methods to solve the UC problem have been implemented as part of this project:
 
-**1. Multi-variable Optimization**
-- Inspired by the following papers: 
-- Observed limitations: Results are far from ideal
-- Requires optimizing as many additional parameters as the number of units
-- Potentially challenging to scale
-
-**2. ADMM (Alternating Direction Method of Multipliers)**
+**1. ADMM (Alternating Direction Method of Multipliers)**
 - Implementation inspired by the following work: http://arxiv.org/abs/2001.02069.
 - The method provide good results when solving the UC problem, however relies to significantly on classical optimization and the quantum solver deal with trivial problems. It is then unlikely to provide any quantum advantage.
 
-**3. xQAOA**
+**2. xQAOA**
 - Implementation inspired by the following work: http://arxiv.org/abs/2108.08805.
 - Outperforms the two previous methods in accuracy. We have showned as part of this work that we can map the Knapsack problem the the UC problem using only one additional parameter to optimize. Can be easily scallable and we have implement the method on IBM_quebec quantum computer using up to 127 qubits.
 
 ## **File Structure**
-
-*To be completed later...*
+xQAOA/
+├── figures/                   # Generated figures and visualizations
+├── runs/                      # Logs and outputs from various runs
+├── scripts/
+│   ├── experiments/           # Experimentation scripts
+│   │   ├── qkp_evaluate_noise.py         # Evaluates noise impact on QKP
+│   │   ├── qkp_optimal_parameters.py     # Finds optimal parameters for QAOA
+│   │   ├── run_qkp_simulator_high_depth.py  # Runs QKP on a high-depth simulator (QAOA at p=2)
+│   │   ├── solve_UC_knapsack.py          # Solves UC problem as a knapsack problem
+│   │   └── visualize_LG_distribution.py  # Visualizes Lazy Greedy distribution
+│   ├── solvers/               # Solver modules
+│   │   └── qkp_solver.py      # Quantum Knapsack Problem solver with xQAOA
+│   ├── utils/                 # Utility scripts
+│   │   ├── kp_utils.py        # Knapsack-related utility functions
+│   │   ├── visualize.py       # Visualization helpers
+│   │   └── post-process_qkp_run.py  # Post-processes quantum run results
+│   ├── run_qkp_fake_hardware.py  # Simulates hardware noise in QKP
+│   ├── run_qkp_hardware.py       # Runs QKP on real quantum hardware
+│   ├── run_qkp_simulator.py      # Runs QKP on quantum simulators
+│   ├── solve_MUCP.py             # Solves the Multi-Unit Commitment Problem (not complete)
+│   └── solve_MUCP_rolling_horizon.py  # Solves UC in a rolling horizon framework (not complete)
+├── requirements.txt          # Python dependencies for the project
 
 ## **License**
 
