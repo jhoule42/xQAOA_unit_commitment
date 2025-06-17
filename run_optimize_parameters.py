@@ -2,7 +2,6 @@
 # This script constructs and optimizes a QAOA circuit for the KP using a copula-based mixer.
 # It supports both hardware execution (IBM Quantum backend) and simulation (MPS backend).
 # Optional light-cone transpilation is available for circuit reduction.
-# The script saves results, plots optimization progress, and compares quantum/classical solutions.
 
 import os, sys
 import json
@@ -23,6 +22,7 @@ from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit_ibm_runtime import QiskitRuntimeService
 from qiskit_aer.primitives import EstimatorV2, SamplerV2
 from qiskit_aer.noise import NoiseModel
+# from qiskit_algorithms.optimizers import SPSA
 
 sys.path.append("/Users/julien-pierrehoule/Documents/Stage/T3/Code")
 
@@ -34,31 +34,31 @@ from ADMM.scripts.solvers.classical_solver_UC import gurobi_knapsack_solver
 
 #%% ============================= BACKEND CONNECTION =============================
 service = QiskitRuntimeService(channel="ibm_quantum",
-                               instance='pinq-quebec-hub/universit-de-cal/main')
+                               instance='pinq-quebec-hub/universit-de-cal/prof-adam-bene-w')
 backend = service.backend('ibm_quebec')
 print("Backend Connected.")
 
 #%% ============================= Set Parameters =============================
-n = 40 # number of qubits
+n = 104 # number of qubits
 shots = 100000 # number of shots
 p = 1 # number of layers for the QAOA circuit
 load_factor = 0.8  # if set to None; random load between [0.25-0.75] max weight
 light_cone = True
-full_circuit_optimization = True
-func_distribution = generate_profit_spanner
-transpilation_level = 3
+full_circuit_optimization = False
+func_distribution = generate_inversely_strongly_correlated
+# func_distribution = generate_profit
+transpilation_level = 2
 
-k_range = [15]  # Simplified from np.arange(10, 24, 1)
+k_range = 5  # Simplified from np.arange(10, 24, 1)
 theta_range = [-1]  # Simplified from [0, -0.5, -1]
 bit_mapping = 'regular' # choose 'inverse' to solve UC
-init_params = [np.pi, np.pi / 2] * p  # (gamma, beta) pairs initialization
 
 # Generate values and weights for the current distributioné
 v, w = func_distribution(n)
 c = np.ceil(load_factor * sum(w)).astype(int)
 
 PATH_RUNS = "/Users/julien-pierrehoule/Documents/Stage/T3/Code/xQAOA/runs/hardware"
-folder_name = f"KP_N{n}_optimized_{func_distribution.__name__[9:]}_load-{load_factor}_p{p}"
+folder_name = f"KP_N{n}_optimized_{func_distribution.__name__[9:]}_load-{load_factor}_p{p}_k{k_range}"
 
 # Save the parameters for the execution to a dictionary
 dict_params = {}
@@ -68,7 +68,7 @@ dict_params['load_factor'] = load_factor
 dict_params['distribution'] = func_distribution.__name__
 dict_params['p'] = p
 dict_params['theta_range'] = theta_range
-dict_params['k_range'] = k_range
+dict_params['k_range'] = [k_range]
 dict_params['bit_mapping'] = bit_mapping
 dict_params['transpilation_level'] = transpilation_level
 dict_params['shots'] = shots
@@ -139,8 +139,8 @@ print(f"Logical circuit depth: {qaoa_ansatz.decompose().depth()}")
 #%% ======================= Initialize the Estimator ========================
 
 # Implementing noise model takes a lot of time to run
-nm = NoiseModel.from_backend(backend)
-# nm = None
+# nm = NoiseModel.from_backend(backend)
+nm = None
 coupling_map = backend.configuration().coupling_map
 basis_gates = backend.basis_gates
 
@@ -167,6 +167,7 @@ print(f"(Transpiled) Circuit depth: {transpiled_circuit.depth()}")
 print(f"(Transpiled) 2Q gates depth: {transpiled_circuit.depth(lambda x: (len(x.qubits)>=2))}")
 print(f"(Transpiled) Total 2Q gates: {transpiled_circuit.num_nonlocal_gates()}")
 
+
 #%% ======================= RUN THE OPTIMIZATION ======================== 
 
 # Initialize
@@ -181,13 +182,18 @@ def compute_light_cone_circuits(ansatz, hamiltonian):
     Returns a list of reduced circuits.
     """
     light_cone_list = []
+    reduced_paulis = []
+    num_qubits = len(hamiltonian.paulis[0])
 
     pbar = tqdm(total=len(hamiltonian.paulis), desc="Light cone computation")
     for i, pauli_term in enumerate(hamiltonian.paulis):
+
         pauli_str = pauli_term.to_label()
-        active_indices = [j for j, p in enumerate(pauli_str) if p != 'I']
+        active_indices = [(num_qubits-1-i) for i, p in enumerate(pauli_str) if p != "I"]
+
         if not active_indices:
             light_cone_list.append(None)
+            reduced_paulis.append(None)
             pbar.update(1)
             continue
 
@@ -198,18 +204,20 @@ def compute_light_cone_circuits(ansatz, hamiltonian):
         elapsed = time.perf_counter() - t0
 
         light_cone_list.append(reduced_circuit)
+        reduced_paulis.append(pauli_term)
+
         pbar.set_postfix(last_time=f"{elapsed:.6f} s")
         pbar.update(1)
     pbar.close()
 
-    return light_cone_list
+    return light_cone_list, reduced_paulis
 
 
-
-def cost_func_lightcone(params_values, ansatz, hamiltonian, estimator, light_cone_list):
+def cost_func_lightcone(params_values, ansatz, hamiltonian, estimator, light_cone_data):
     """Compute total expectation using precomputed light-cone-reduced circuits with EstimatorV2."""
 
-    total = float(hamiltonian.coeffs[-1].real)
+    light_cone_list, reduced_paulis = light_cone_data
+    total = 0.0
     param_dict = dict(zip(ansatz.parameters, params_values))
 
     for i, pauli_term in enumerate(hamiltonian.paulis):
@@ -217,48 +225,60 @@ def cost_func_lightcone(params_values, ansatz, hamiltonian, estimator, light_con
         pauli_str = pauli_term.to_label()
 
         if light_cone_list[i] is None:
-            continue  # skip identity-only terms (handled in the constant term)
+            # Handle identity term
+            total += coeff
+            continue
 
         reduced_circuit = light_cone_list[i]
         reduced_params = [param_dict[p] for p in reduced_circuit.parameters if p in param_dict]
-        reduced_pauli = SparsePauliOp(pauli_str)
+        # reduced_pauli = SparsePauliOp(pauli_str)
 
-        job = estimator.run([(reduced_circuit, reduced_pauli, reduced_params)])
+        # Run estimator with the correct Pauli operator
+        job = estimator.run([(reduced_circuit, reduced_paulis[i], reduced_params)])
         result = job.result()[0]
         ev = result.data.evs
         total += coeff * ev
 
     objective_func_vals_lc.append(total)
-    return total
+    return -total
 
 
-#%% ==================== RUN THE LIGHT CONE OPTIMIZATION =====================
+#%% 
+init_params = [np.pi, np.pi / 2] * p  # (gamma, beta) pairs initialization
 
 if light_cone:
     print("Running the light cone optimization...")
-
-    # Transpile & layout
-    transpiled = transpile(qaoa_ansatz, basis_gates=basis_gates, optimization_level=3)
-    mapped_H = cost_hamiltonian.apply_layout(transpiled.layout)
-
-    # Precompute light-cone circuits
-    lc_list = compute_light_cone_circuits(transpiled, mapped_H)
+    # Use the already existing transpiled_circuit
+    mapped_H_for_lc = cost_hamiltonian.apply_layout(transpiled_circuit.layout)
+    lc_data = compute_light_cone_circuits(transpiled_circuit, mapped_H_for_lc) # Pass the same circuit
 
     # Optimize
     result_lc = minimize(
         cost_func_lightcone,
         init_params,
-        args=(transpiled_circuit, mapped_H, estimator_mps, lc_list),
+        args=(transpiled_circuit, mapped_H_for_lc, estimator_mps, lc_data),
         method="COBYLA",
         bounds=[(0, np.pi), (0, 2*np.pi)] * p,
         tol=1e-6,
-        options={"maxiter":150, "disp":True},
+        options={"maxiter":1000, "disp":True},
+        # rhobeg=0.1, # parameter to play with
         callback=lambda xk: print(f"Iteration {len(objective_func_vals_lc)}: Current params = {xk}"),
     )
-    print("Optimal cost (light-cone):", result_lc.fun)
 
+    # spsa = SPSA(maxiter=300) # Set the maximum number of iterations
 
-#%% ======================= RUN THE OPTIMIZATION ======================== 
+    # result_lc = spsa.minimize(
+    #     fun=cost_func_lightcone,
+    #     x0=init_params,
+    #     bounds=[(0, np.pi), (0, 2*np.pi)] * p,
+    # )
+    # print("Optimal cost (light-cone):", result_lc.fun)
+
+else:
+    print("Light cone optimization not performed.")
+    result_lc = None
+
+ #%% ========================= RUN THE OPTIMIZATION ========================= 
 
 def cost_func_estimator(params, ansatz, hamiltonian, estimator):
     """ The cost function to be minimized."""
@@ -297,15 +317,15 @@ if full_circuit_optimization:
     dict_params['optimized_params'] = [float(i) for i in result_reg.x]
     dict_params['cost_function'] = float(result_reg.fun)
 
-
 # Save parameter and optimization results to file
 with open(f'{PATH_RUNS}/{folder_name}/parameters.json', 'w') as file:
     json.dump(dict_params, file, indent=4)
-print('Execution parameters saved to file.')
+print('\nExecution parameters saved to file.')
+
 
 #%% ======================== PLOT THE COST FUNCTION ========================
 plt.figure(figsize=(8, 5))
-plt.plot(objective_func_vals, marker='o', linestyle='-', label='Regular')
+# plt.plot(objective_func_vals, marker='o', linestyle='-', label='Regular')
 plt.plot(objective_func_vals_lc, marker='o', linestyle='-', label='Light Cone')
 plt.xlabel("Iteration")
 plt.ylabel("Cost Function Value")
@@ -314,52 +334,54 @@ plt.grid(True)
 plt.legend()
 plt.show()
 
-
 # %% ======================== RUN THE SAMPLER on HARDWARE ========================
 
-from qiskit_ibm_runtime import SamplerV2, Batch
-from qiskit_ibm_runtime import QiskitRuntimeService
+# from qiskit_ibm_runtime import SamplerV2, Batch
+# from qiskit_ibm_runtime import QiskitRuntimeService
 
-dict_jobs_id = {}
-opt_circuit_reg = transpiled_circuit.assign_parameters(result_reg.x)
-opt_circuit_reg.measure_active() 
-print(f"Nb of 2Qbits gates depth: {opt_circuit_reg.depth(lambda x: (len(x.qubits)>=2))}")
+# dict_jobs_id = {}
+# opt_circuit_reg = transpiled_circuit.assign_parameters(result_lc.x)
+# opt_circuit_reg.measure_active() 
+# print(f"Nb of 2 qbits gates depth: {opt_circuit_reg.depth(lambda x: (len(x.qubits)>=2))}")
 
-with Batch(backend=backend, max_time='3h') as batch:
-    sampler = SamplerV2(mode=batch)
-    print('Sending Batch Job.')
+# with Batch(backend=backend, max_time='3h') as batch:
+#     sampler = SamplerV2(mode=batch)
+#     print('Sending Batch Job.')
 
-    workload_id = batch.session_id
+#     workload_id = batch.session_id
 
-    # Set Error Mitigation
-    sampler.options.dynamical_decoupling.enable = True
-    sampler.options.dynamical_decoupling.sequence_type = "XpXm"
-    sampler.options.twirling.enable_gates = True # enable Pauli Twirling
-    sampler.options.twirling.enable_measure = True
+#     # Set Error Mitigation
+#     sampler.options.dynamical_decoupling.enable = True
+#     sampler.options.dynamical_decoupling.sequence_type = "XpXm"
+#     sampler.options.twirling.enable_gates = True # enable Pauli Twirling
+#     sampler.options.twirling.enable_measure = True
 
-    job_reg = sampler.run([(opt_circuit_reg,)], shots=shots)
+#     job_reg = sampler.run([(opt_circuit_reg,)], shots=shots)
 
-print('Done submitting jobs.')
+# print('Done submitting jobs.')
 
 
 
 # %% =================== RUN THE SAMPLER (simulation) ===================
 
+# opt_params = np.random.uniform(0, 2*np.pi, size=2*p)
+
 print("Running the sampler.")
-# opt_circuit_lc = transpiled_circuit.assign_parameters(result_lc.x)
-# opt_circuit_lc.measure_all()  # add measurement
 
-opt_circuit_reg = transpiled_circuit.assign_parameters(result_reg.x)
-opt_circuit_reg.measure_active()  # add measurement
+if light_cone:
+    opt_circuit_lc = transpiled_circuit.assign_parameters(result_lc.x)
+    opt_circuit_lc.measure_active()  # add measurement
+    job_lc = sampler_mps.run([(opt_circuit_lc,)], shots=shots)
+    counts_int_lc = job_lc.result()[0].data.meas.get_int_counts()
+    counts_bin_lc = job_lc.result()[0].data.meas.get_counts()
 
-# job_lc = sampler_mps.run([(opt_circuit_lc,)], shots=shots)
-job_reg = sampler_mps.run([(opt_circuit_reg,)], shots=shots)
+# if full_circuit_optimization:
+#     opt_circuit_reg = transpiled_circuit.assign_parameters(result_reg.x)
+#     opt_circuit_reg.measure_active()  # add measurement
+#     job_reg = sampler_mps.run([(opt_circuit_reg,)], shots=shots)
+#     counts_int_reg = job_reg.result()[0].data.meas.get_int_counts()
+#     counts_bin_reg = job_reg.result()[0].data.meas.get_counts()
 
-# counts_int_lc = job_lc.result()[0].data.meas.get_int_counts()
-# counts_bin_lc = job_lc.result()[0].data.meas.get_counts()
-
-counts_int_reg = job_reg.result()[0].data.meas.get_int_counts()
-counts_bin_reg = job_reg.result()[0].data.meas.get_counts()
 
 #%% ======================== POST-PROCESS RESULTS ========================
 
@@ -377,23 +399,55 @@ print(f"Bitstring: {result_gurobi['bitstring']}")
 
 # Convert the counts to values
 filter_sols = True
-dict_bit_values = convert_bitstring_to_values(counts_bin_reg, v, w, c,
-                                              filter_invalid_solutions=filter_sols)
+
+if light_cone:
+    dict_bit_values_lc = convert_bitstring_to_values(counts_bin_lc, v, w, c,
+                                            filter_invalid_solutions=filter_sols)
+
+# if full_circuit_optimization:
+#     dict_bit_values_full = convert_bitstring_to_values(counts_bin_reg, v, w, c,
+#                                             filter_invalid_solutions=filter_sols)
 
 # Sort the dictionary by value
-sorted_dict = dict(sorted(dict_bit_values.items(), key=lambda item: item[0], reverse=True))
-
-# Get the best value
+sorted_dict = dict(sorted(dict_bit_values_lc.items(), key=lambda item: item[0], reverse=True))
 best_value = max(sorted_dict.keys())
 best_count = sorted_dict[best_value]
 print(f"Best value: {best_value}")
-print(f"Best count: {best_count}")
 
 # Compute the probability of sucess and the approximate ratio
-aprox_ratio = compute_approximate_ratio(dict_bit_values, value_opt)
+aprox_ratio = compute_approximate_ratio(dict_bit_values_lc, value_opt)
 
 
 # %%
+
+print("\nGreedy Warm Start Solution")
+
+def logistic_bias(v, w, c, k):
+    """Creates a biased initial distribution using the logistic function."""
+    r = np.array(v) / np.array(w)
+    C = (sum(w) / c) - 1
+    return 1 / (1 + C * np.exp(-k * (r - r.mean())))
+
+# Calculate probabilities using logistic_bias
+p_dist = logistic_bias(v, w, c, k=5)
+r = v/w # Calculate r_i = v_i/w_i ratios
+
+warm_start_counts = defaultdict(int)
+shots = 100000
+
+for _ in range(shots):
+    bitstring = ''.join(str(int(np.random.random() < pi)) for pi in p_dist)
+    warm_start_counts[bitstring] += 1
+
+# Convert to value distribution
+dict_bit_values_ws = convert_bitstring_to_values(warm_start_counts, v, w, c,
+                                                   filter_invalid_solutions=filter_sols)
+
+# Compute the probability of sucess
+p_sucess_ws= probabilty_success(dict_bit_values_ws, value_opt)
+aprox_ratio_ws = compute_approximate_ratio(dict_bit_values_ws, value_opt)
+
+
 print("\nRandom Distribution Solution")
 
 random_counts = defaultdict(int) # generate dict with default value of 0
@@ -406,20 +460,22 @@ dict_bit_values_random = convert_bitstring_to_values(random_counts, v, w, c,
 
 # Compute the probability of sucess
 aprox_ratio_random = compute_approximate_ratio(dict_bit_values_random, value_opt)
-print(f"Best value: {max(dict_bit_values_random.keys())}")
+# print(f"Best value: {max(dict_bit_values_random.keys())}")
 
 data_dict = {
-    "Random": dict_bit_values_random,
-    f"Copula p={p}": dict_bit_values,
+    f"Random: Apr={aprox_ratio_random:.2f}": dict_bit_values_random,
+    f"WS: Apr={aprox_ratio_ws:.3f}": dict_bit_values_ws,
+    f"Cop p=1: Apr={aprox_ratio:.3f}": dict_bit_values_lc,
 }
 # Custom colors
 colors = {
-    "Random": "orange",
-    f"Copula p={p}": "steelblue",
+    f"Random: Apr={aprox_ratio_random:.2f}": "orange",
+    f"WS: Apr={aprox_ratio_ws:.3f}": 'black',
+    f"Cop p=1: Apr={aprox_ratio:.3f}": "steelblue",
 }    
 # Annotations
 annotations = {
-    r"$\mathrm{Approximate\ Ratio}$": np.round(aprox_ratio, 2),
+    # r"$\mathrm{Approximate\ Ratio}$": np.round(aprox_ratio, 2),
     "Ratio optimality (%)": np.round(best_value /value_opt *100, 2),
 }
 plot_multiple_distributions(
@@ -431,15 +487,15 @@ plot_multiple_distributions(
     log=False,
     annotations=annotations,
     figsize=(8, 6),
+    title=f"Distribution:{func_distribution.__name__[9:]}  [k={k_range}]  Cap={load_factor*100}%"
 )
 
 # %% ======================= PLOT THE COST FUNCTION ========================
-
 # plot the parameters optimization
-iterations = np.arange(len(result_reg.x)//2) + 1
+iterations = np.arange(len(result_lc.x)//2) + 1
 plt.figure(figsize=(8, 5))
-plt.plot(iterations, result_reg.x[0::2], marker='o', linestyle='-', label='Gamma')
-plt.plot(iterations, result_reg.x[1::2], marker='o', linestyle='-', label='Beta')
+plt.plot(iterations, result_lc.x[0::2], marker='o', linestyle='-', label='Gamma')
+plt.plot(iterations, result_lc.x[1::2], marker='o', linestyle='-', label='Beta')
 plt.xlabel("Iteration")
 plt.ylabel("Parameter Value")
 plt.legend()
