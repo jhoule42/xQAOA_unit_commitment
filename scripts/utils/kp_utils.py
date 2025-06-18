@@ -467,3 +467,75 @@ def get_weight(bitstring, w, bit_mapping="regular"):
         return sum((1 - int(bitstring[i])) * w[i] for i in range(len(bitstring)))
     else:
         raise ValueError("Invalid bit_mapping mode. Use 'regular' or 'inverse'.")
+    
+
+def convert_bitstring_to_values(counts, v, w, c, filter_invalid_solutions=True):
+    dict_bit_values = {}
+    
+    for bitstring, count in counts.items():
+
+        if filter_invalid_solutions:
+            if get_weight(bitstring, w) <= c:
+                value = get_value(bitstring, v)
+
+                # If the value already exist
+                if value in dict_bit_values:
+                    new_count = dict_bit_values[value] + count
+                    dict_bit_values[value] = new_count
+
+                else:
+                    dict_bit_values[value] = count
+        else:
+            value = get_value(bitstring, v)
+
+            # If the value already exist
+            if value in dict_bit_values:
+                new_count = dict_bit_values[value] + count
+                dict_bit_values[value] = new_count
+
+            else:
+                dict_bit_values[value] = count
+
+    return dict_bit_values
+
+def convert_bitstring_to_values(counts, v, w, c, filter_invalid_solutions=True):
+    dict_bit_values = {}
+
+    # Create a progress bar over the items in `counts`
+    for bitstring, count in tqdm(counts.items(), desc="Processing bitstrings", total=len(counts)):
+        
+        if filter_invalid_solutions:
+            if get_weight(bitstring, w) <= c:
+                value = get_value(bitstring, v)
+                dict_bit_values[value] = dict_bit_values.get(value, 0) + count
+        else:
+            value = get_value(bitstring, v)
+            dict_bit_values[value] = dict_bit_values.get(value, 0) + count
+
+    return dict_bit_values
+
+
+def compute_approximate_ratio(dict_bit_values, value_opt):
+    # Compute the approximate ratio
+    total = 0
+    for values, counts in dict_bit_values.items():
+        total += values * counts
+
+    # sum all the counts in the histogram of valid solutions
+    total_valid_shots = sum(dict_bit_values.values())
+    aprox_ratio = total / (total_valid_shots * value_opt)
+
+    return aprox_ratio
+
+def probabilty_success(dict_bit_values, optimal_value):
+    """ Compute the probability of sucess."""
+    max_bitstring_val = max(dict_bit_values.keys())  # Find the highest key
+    
+    if max_bitstring_val == optimal_value:
+        max_value_counts = dict_bit_values[max_bitstring_val]   # Get its associated value
+        total_sum = sum(dict_bit_values.values())  # Sum all values
+        return max_value_counts / total_sum
+
+    # If there is no count for the optimal solution
+    else:
+        return 0

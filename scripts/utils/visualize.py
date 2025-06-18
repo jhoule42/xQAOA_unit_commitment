@@ -103,8 +103,9 @@ def plot_rank_and_ratio(results, methods=None, labels=None):
     plt.show()
 
 
-def plot_histogram_with_vlines(values_unbalanced, min_cost, values_slack=None,
-                               bins_width=50,log=True, output_file=None, return_bin_height=False):
+def plot_histogram_with_vlines(values, min_cost, label_data=None, values_slack=None,
+                                bins_width=50, log=True, output_file=None,
+                                return_bin_height=False, Apr=None, p_optimality=None):
     """
     Plots histograms of two datasets with vertical lines indicating an optimal value.
     
@@ -113,19 +114,21 @@ def plot_histogram_with_vlines(values_unbalanced, min_cost, values_slack=None,
         values_slack (dict): Data for the slack histogram (keys as bins, values as weights).
         min_cost (float): The value at which to draw the vertical line.
         output_file (str, optional): File path to save the plot (e.g., "output.png"). Defaults to None.
+        Apr (float, optional): The Apr value to display on the plot. Defaults to None.
+        p_optimality (float, optional): The p_optimality value to display on the plot. Defaults to None.
     """
-    fig, ax = plt.subplots(figsize=(10, 6))  # Larger figure size for better readability
+    fig, ax = plt.subplots(figsize=(8, 6))  # Larger figure size for better readability
 
     # Plot unbalanced histogram and get counts
     unbalanced_counts, unbalanced_bins, _ = ax.hist(
-        list(values_unbalanced.keys()),
-        weights=list(values_unbalanced.values()),
+        list(values.keys()),
+        weights=list(values.values()),
         bins=bins_width,
         edgecolor="black",
-        label="Unbalanced",
         align="right",
-        alpha=0.7,
-        color="steelblue"
+        alpha=0.9,
+        color="steelblue",
+        label=label_data
     )
 
     max_height = unbalanced_counts.max()
@@ -153,18 +156,29 @@ def plot_histogram_with_vlines(values_unbalanced, min_cost, values_slack=None,
             print(f"max height: {max_slack_height}")
 
         # Add vertical line
-        ax.axvline(-min_cost, linestyle="--", color="red", label="Optimal", linewidth=2)
+        ax.axvline(-min_cost, linestyle="--", color="red", label="Optimal", linewidth=1)
+
+        # Add Apr and p_optimality as text annotations if provided
+        if Apr is not None and p_optimality is not None:
+            text = f"Apr: {Apr:.2f}\nP_optimality: {p_optimality:.2f}"
+            ax.text(
+                0.25, 0.85, text,
+                transform=ax.transAxes,
+                fontsize=12,
+                verticalalignment='top',
+                horizontalalignment='right',
+                bbox=dict(boxstyle="round,pad=0.3", edgecolor="black", facecolor="white", alpha=0.8)
+            )
 
         # Set log scale for y-axis
         if log:
             ax.set_yscale("log")
 
         # Add labels, title, and legend
-        ax.set_ylabel("Counts", fontsize=14)
-        ax.set_xlabel("Values", fontsize=14)
-        ax.set_title("Comparison of Values Distributions", fontsize=16)
+        ax.set_ylabel("Counts", fontsize=12)
+        ax.set_xlabel("Values", fontsize=12)
         ax.legend(fontsize=12)
-
+        ax.set_xlim(left=0)
 
         # Add gridlines for clarity
         ax.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.7)
@@ -172,7 +186,122 @@ def plot_histogram_with_vlines(values_unbalanced, min_cost, values_slack=None,
         # Show or save plot
         if output_file:
             plt.savefig(output_file, bbox_inches="tight")
+
+        plt.tight_layout()
         plt.show()
+
+
+def plot_multiple_distributions(data_dict, min_cost=None, 
+                           bins_width=50, log=True, output_file=None,
+                           colors=None, labels=None, title=None, nb_bins=200,
+                           annotations=None, figsize=(10, 6)):
+    """
+    Plots histograms of multiple distributions on the same plot with optional vertical line.
+    
+    Parameters:
+    data_dict (dict): Dictionary where keys are method names and values are dictionaries 
+                     with keys as data points and values as weights.
+    min_cost (float, optional): The value at which to draw the vertical line.
+    bins_width (int): Number of bins for the histograms.
+    log (bool): Whether to use log scale for y-axis.
+    output_file (str, optional): File path to save the plot (e.g., "output.png").
+    colors (dict, optional): Dictionary mapping method names to colors.
+    labels (dict, optional): Dictionary mapping method names to display labels.
+    title (str, optional): Title for the plot.
+    annotations (dict, optional): Dictionary with annotation text and position.
+    figsize (tuple): Figure size (width, height).
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    
+    # Default colors if not provided
+    default_colors = ['steelblue', 'orange', 'green', 'purple', 'brown', 'pink', 'gray', 'olive']
+    
+    if colors is None:
+        colors = {method: default_colors[i % len(default_colors)] 
+                 for i, method in enumerate(data_dict.keys())}
+    
+    if labels is None:
+        labels = {method: method for method in data_dict.keys()}
+    
+    fig, ax = plt.subplots(figsize=figsize)
+    max_height = 0
+    
+    # Find the global range for consistent binning
+    all_values = []
+    for method, data in data_dict.items():
+        if data:  # Check if data exists
+            all_values.extend(list(data.keys()))
+    
+    if not all_values:
+        print("No data to plot")
+        return
+    
+    # Create consistent bins across all distributions
+    min_val = min(all_values)
+    max_val = max(all_values)
+    bin_edges = np.linspace(min_val, max_val, bins_width + 1)
+    
+    # Plot each distribution
+    for i, (method, data) in enumerate(data_dict.items()):
+        if not data:  # Skip if no data
+            continue
+            
+        values = list(data.keys())
+        weights = list(data.values())
+        
+        counts, _, patches = ax.hist(
+            values,
+            weights=weights,
+            bins=nb_bins,
+            edgecolor=colors[method],
+            alpha=0.7,
+            color=colors[method],
+            label=labels[method],
+            histtype='bar'
+        )
+        
+        current_max = max(counts) if len(counts) > 0 else 0
+        max_height = max(max_height, current_max)
+    
+    # Add vertical line for optimal value if provided
+    if min_cost is not None:
+        ax.axvline(min_cost, linestyle="--", color="black", label="Optimal", linewidth=1.5)
+    
+    # Add annotations if provided
+    if annotations:
+        text = "\n".join([f"{k}: {v:.2f}" for k, v in annotations.items()])
+        ax.text(
+            0.05, 0.95, text,
+            transform=ax.transAxes,
+            fontsize=12,
+            verticalalignment='top',
+            bbox=dict(boxstyle="round,pad=0.3", edgecolor="black", facecolor="white", alpha=0.8)
+        )
+    
+    # Set log scale for y-axis if requested
+    if log:
+        ax.set_yscale("log")
+    
+    # Add labels, title, and legend
+    ax.set_ylabel("Counts", fontsize=12)
+    ax.set_xlabel("Values", fontsize=12)
+    if title:
+        ax.set_title(title, fontsize=14)
+    ax.legend(fontsize=10, loc='best')
+    
+    # Add gridlines for clarity
+    ax.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.7)
+    
+    # Show or save plot
+    if output_file:
+        plt.savefig(output_file, bbox_inches="tight", dpi=300)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return fig, ax
+
 
 
 def plot_custom_histogram(counts, highlighted_outcome=None, figsize=(12, 6), 
@@ -386,10 +515,11 @@ def plot_best_values(results, methods=None, labels=None):
     plt.show()
 
 
-def plot_method_comparison(results, optimal_value,  methods=None, labels=None, title=None,
-                           bar_width=0.15):
+def plot_method_comparison(results, optimal_value, methods=None,
+                           labels=None, title=None, bar_width=0.15,
+                           ylim=None):
     """
-    Plot a histogram comparing method performance across distributions.
+    Plot a histogram comparing method performance across distributions using optimality ratios.
     
     Parameters:
     -----------
@@ -417,31 +547,19 @@ def plot_method_comparison(results, optimal_value,  methods=None, labels=None, t
     # Professional color palette
     colors = ['#4C72B0', '#55A868', '#C44E52', '#8172B2', 'k']
     
-    # Prepare data
-    best_values = {method: [results[method][dist]['value']\
-                            for dist in distributions] for method in methods}
-    
-    min_values = {method: min(values) for method, values in best_values.items()}
-    print(min_values)
-
-    min_method = min(min_values.values())
-    min_value = min(best_values.values())
-    print(min_value[0])
-    print(min_method)
+    # Calculate optimality ratios
+    ratios = {method: [results[method][dist]['value'] / optimal_value * 100 
+                      for dist in distributions] for method in methods}
 
     # Create the plot
-    fig, ax = plt.subplots(figsize=(12, 8))  # Increase the figure height
-    # fig.subplots_adjust(top=0.)  # Adjust the top margin
-    
-    # Bar width and positioning
-    bar_width = bar_width
+    fig, ax = plt.subplots(figsize=(12, 8))
     x = np.arange(len(distributions_cleaned))
     
     # Plot bars for each method
     for i, (method, label) in enumerate(zip(methods, labels)):
         bars = ax.bar(
             x + i * bar_width, 
-            best_values[method], 
+            ratios[method], 
             width=bar_width,
             label=label,
             alpha=0.95,
@@ -449,15 +567,12 @@ def plot_method_comparison(results, optimal_value,  methods=None, labels=None, t
             edgecolor='black'
         )
         
-        # Add text labels with performance relative to optimal
-        for bar, value in zip(bars, best_values[method]):
-            # Calculate percentage of optimal value
-            perf_percentage = (value / optimal_value) * 100
-            
+        # Add text labels with optimality ratio
+        for bar, ratio in zip(bars, ratios[method]):
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
                 bar.get_height(),
-                f'{value}\n ({perf_percentage:.2f}%)',
+                f'{ratio:.2f}%',
                 ha='center',
                 va='bottom',
                 fontsize=12,
@@ -466,23 +581,15 @@ def plot_method_comparison(results, optimal_value,  methods=None, labels=None, t
             )
 
     # Customize plot
-    ax.set_title(title or 'Performance Comparison Across Distributions', fontsize=14, fontweight='bold')
     ax.set_xlabel('Distribution', fontsize=12)
-    ax.set_ylabel('Value', fontsize=12)
-    
-    # Set x-ticks
+    ax.set_ylabel('Optimality ratio (%)', fontsize=12)
+    if ylim:
+        ax.set_ylim(ylim[0], ylim[1])
+    else:
+        ax.set_ylim(80, 100)
     ax.set_xticks(x + bar_width * (len(methods) - 1) / 2)
     ax.set_xticklabels(distributions_cleaned, rotation=0, ha='right')
-    
-    # # Add horizontal line for optimal value
-    # ax.axhline(y=optimal_value, color='r', linestyle='--', label='Optimal Value')
-    
-    # Customize grid and legend
-    # ax.grid(True, axis='y', linestyle='--', alpha=0.6)
     ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=11)
-
-    ax.set_yscale('log')
-    ax.set_ylim(top=optimal_value * 1.001)
     
     plt.tight_layout()
     plt.show()
