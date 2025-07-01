@@ -24,18 +24,17 @@ from qiskit_aer.primitives import EstimatorV2, SamplerV2
 from qiskit_aer.noise import NoiseModel
 # from qiskit_algorithms.optimizers import SPSA
 
-sys.path.append("/Users/julien-pierrehoule/Documents/Stage/T3/Code")
-
-from xQAOA.scripts.utils.kp_utils import *
-from xQAOA.scripts.solvers.qkp_solver import *
-from xQAOA.scripts.utils.visualize import *
+#sys.path.append("/Users/julien-pierrehoule/Documents/Stage/T3/Code")
+sys.path.append("..")
+from scripts.utils.kp_utils import *
+from qkp_solver import *
+from scripts.utils.visualize import *
 from ADMM.scripts.solvers.classical_solver_UC import gurobi_knapsack_solver
 
 
 #%% ============================= BACKEND CONNECTION =============================
-service = QiskitRuntimeService(channel="ibm_quantum",
-                               instance='pinq-quebec-hub/universit-de-cal/prof-adam-bene-w')
-backend = service.backend('ibm_quebec')
+service = QiskitRuntimeService(name='enablement-work')
+backend = service.backend('ibm_torino')
 print("Backend Connected.")
 
 #%% ============================= Set Parameters =============================
@@ -57,27 +56,27 @@ bit_mapping = 'regular' # choose 'inverse' to solve UC
 v, w = func_distribution(n)
 c = np.ceil(load_factor * sum(w)).astype(int)
 
-PATH_RUNS = "/Users/julien-pierrehoule/Documents/Stage/T3/Code/xQAOA/runs/hardware"
-folder_name = f"KP_N{n}_optimized_{func_distribution.__name__[9:]}_load-{load_factor}_p{p}_k{k_range}"
+#PATH_RUNS = "/Users/julien-pierrehoule/Documents/Stage/T3/Code/xQAOA/runs/hardware"
+#folder_name = f"KP_N{n}_optimized_{func_distribution.__name__[9:]}_load-{load_factor}_p{p}_k{k_range}"
 
 # Save the parameters for the execution to a dictionary
-dict_params = {}
-dict_params['execution_type'] = "hardware"
-dict_params['n_units'] = n
-dict_params['load_factor'] = load_factor
-dict_params['distribution'] = func_distribution.__name__
-dict_params['p'] = p
-dict_params['theta_range'] = theta_range
-dict_params['k_range'] = [k_range]
-dict_params['bit_mapping'] = bit_mapping
-dict_params['transpilation_level'] = transpilation_level
-dict_params['shots'] = shots
-dict_params['v'] = [int(i) for i in list(v)]
-dict_params['w'] = [int(i) for i in list(w)]
-dict_params['c'] = int(c)
+# dict_params = {}
+# dict_params['execution_type'] = "hardware"
+# dict_params['n_units'] = n
+# dict_params['load_factor'] = load_factor
+# dict_params['distribution'] = func_distribution.__name__
+# dict_params['p'] = p
+# dict_params['theta_range'] = theta_range
+# dict_params['k_range'] = [k_range]
+# dict_params['bit_mapping'] = bit_mapping
+# dict_params['transpilation_level'] = transpilation_level
+# dict_params['shots'] = shots
+# dict_params['v'] = [int(i) for i in list(v)]
+# dict_params['w'] = [int(i) for i in list(w)]
+# dict_params['c'] = int(c)
 
-os.makedirs(f"{PATH_RUNS}/{folder_name}", exist_ok=True)
-print(f"Folder created: {folder_name}")
+# os.makedirs(f"{PATH_RUNS}/{folder_name}", exist_ok=True)
+# print(f"Folder created: {folder_name}")
 
 
 #%% ======================== Construct the QAOA circuit ========================
@@ -133,7 +132,7 @@ qaoa_ansatz = QAOAAnsatz(cost_operator=cost_layer,
 
 # Remove barriers from the circuit (necessary for light cone transpilation)
 qaoa_ansatz = RemoveBarriers()(qaoa_ansatz.decompose())
-print(f"Logical circuit depth: {qaoa_ansatz.decompose().depth()}")
+print(f"Logical circuit depth: {qaoa_ansatz.decompose().depth(lambda x: len(x.qubits)==2)}")
 
 
 #%% ======================= Initialize the Estimator ========================
@@ -244,7 +243,7 @@ def cost_func_lightcone(params_values, ansatz, hamiltonian, estimator, light_con
 
 
 #%% 
-init_params = [np.pi, np.pi / 2] * p  # (gamma, beta) pairs initialization
+init_params = [np.pi/8, np.pi / 8] * p  # (gamma, beta) pairs initialization
 
 if light_cone:
     print("Running the light cone optimization...")
@@ -292,7 +291,7 @@ def cost_func_estimator(params, ansatz, hamiltonian, estimator):
     cost = results.data.evs
     objective_func_vals.append(cost)
 
-    return -cost
+    return -cost, 
 
 
 if full_circuit_optimization:
@@ -318,15 +317,16 @@ if full_circuit_optimization:
     dict_params['cost_function'] = float(result_reg.fun)
 
 # Save parameter and optimization results to file
-with open(f'{PATH_RUNS}/{folder_name}/parameters.json', 'w') as file:
-    json.dump(dict_params, file, indent=4)
-print('\nExecution parameters saved to file.')
+# with open(f'{PATH_RUNS}/{folder_name}/parameters.json', 'w') as file:
+#     json.dump(dict_params, file, indent=4)
+# print('\nExecution parameters saved to file.')
 
 
 #%% ======================== PLOT THE COST FUNCTION ========================
 plt.figure(figsize=(8, 5))
 # plt.plot(objective_func_vals, marker='o', linestyle='-', label='Regular')
 plt.plot(objective_func_vals_lc, marker='o', linestyle='-', label='Light Cone')
+print("max cost-fn value:", max(objective_func_vals_lc))
 plt.xlabel("Iteration")
 plt.ylabel("Cost Function Value")
 plt.title("Evolution of the Cost Function per Iteration")
@@ -385,7 +385,7 @@ if light_cone:
 
 #%% ======================== POST-PROCESS RESULTS ========================
 
-# Gurobi Solver Knapsack
+#Gurobi Solver Knapsack
 result_gurobi = gurobi_knapsack_solver(v, w, c, verbose=False,
                                        time_limit=60,
                                        optimality_gap=1e-20,
@@ -447,7 +447,6 @@ dict_bit_values_ws = convert_bitstring_to_values(warm_start_counts, v, w, c,
 p_sucess_ws= probabilty_success(dict_bit_values_ws, value_opt)
 aprox_ratio_ws = compute_approximate_ratio(dict_bit_values_ws, value_opt)
 
-
 print("\nRandom Distribution Solution")
 
 random_counts = defaultdict(int) # generate dict with default value of 0
@@ -460,12 +459,12 @@ dict_bit_values_random = convert_bitstring_to_values(random_counts, v, w, c,
 
 # Compute the probability of sucess
 aprox_ratio_random = compute_approximate_ratio(dict_bit_values_random, value_opt)
-# print(f"Best value: {max(dict_bit_values_random.keys())}")
+print(f"Best value: {max(dict_bit_values_random.keys())}")
 
 data_dict = {
-    f"Random: Apr={aprox_ratio_random:.2f}": dict_bit_values_random,
-    f"WS: Apr={aprox_ratio_ws:.3f}": dict_bit_values_ws,
-    f"Cop p=1: Apr={aprox_ratio:.3f}": dict_bit_values_lc,
+f"Random: Apr={aprox_ratio_random:.2f}": dict_bit_values_random,
+   f"WS: Apr={aprox_ratio_ws:.3f}": dict_bit_values_ws,
+   f"Cop p=1: Apr={aprox_ratio:.3f}": dict_bit_values_lc,
 }
 # Custom colors
 colors = {
@@ -475,7 +474,7 @@ colors = {
 }    
 # Annotations
 annotations = {
-    # r"$\mathrm{Approximate\ Ratio}$": np.round(aprox_ratio, 2),
+    r"$\mathrm{Approximate\ Ratio}$": np.round(aprox_ratio, 2),
     "Ratio optimality (%)": np.round(best_value /value_opt *100, 2),
 }
 plot_multiple_distributions(
@@ -483,7 +482,7 @@ plot_multiple_distributions(
     min_cost=value_opt,
     colors=colors,
     nb_bins=2000,
-    # nb_bins=len(dict_bit_values),
+    #nb_bins=len(dict_bit_values),
     log=False,
     annotations=annotations,
     figsize=(8, 6),
@@ -504,4 +503,30 @@ plt.show()
 
 # %%
 
+plt.figure(figsize=(8, 5))
+for i in range(1,8):
+    for j in range(1,8):
+        objective_func_vals = [] 
+        params = [np.pi/i, 2*np.pi /j] * p
+        result_reg = minimize(
+        cost_func_estimator,
+        init_params,
+        args=(transpiled_circuit, cost_hamiltonian, estimator_mps),
+        method="COBYLA",
+        bounds=[(0, np.pi), (0, 2*np.pi)] * (len(init_params)//2),
+        tol=1e-6,
+        options={"maxiter": 150,  "disp": True},  
+        callback=None,
+        )
+    
+    
+    plt.plot([(i,j)], max((objective_func_vals_lc)),marker='x')
+    plt.xlabel("Iteration")
+    plt.ylabel("Cost Function Value")
+    plt.title("Evolution of the Cost Function per Iteration")
+    plt.grid(True)
+    plt.legend()
+plt.show()
 
+
+# %%

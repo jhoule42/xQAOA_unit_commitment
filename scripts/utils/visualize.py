@@ -258,7 +258,7 @@ def plot_multiple_distributions(data_dict, min_cost=None,
             alpha=0.7,
             color=colors[method],
             label=labels[method],
-            histtype='bar'
+            histtype='step'
         )
         
         current_max = max(counts) if len(counts) > 0 else 0
