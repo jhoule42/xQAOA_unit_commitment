@@ -19,9 +19,9 @@ def generate_inversely_strongly_correlated(n=10):
     return values, weights
 
 
-def generate_profit(n=10):
+def generate_profit(n=10, d=3):
     weights = np.random.randint(1, 1001, n)
-    values = 3 * np.ceil(weights / 3).astype(int)
+    values = d * np.ceil(weights / d).astype(int)
     return values, weights
 
 
