@@ -66,6 +66,7 @@ xQAOA/
 │   ├── solve_MUCP.py             # Solves the Multi-Unit Commitment Problem (not complete)
 │   └── solve_MUCP_rolling_horizon.py  # Solves UC in a rolling horizon framework (not complete)
 ├── requirements.txt          # Python dependencies for the project
+├── demo.ipynb                # Jupyter notebook demoing the main ideas of the xQAOA mixer (in progress)
 
 ## **License**
 
