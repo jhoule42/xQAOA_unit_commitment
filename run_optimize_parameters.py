@@ -171,7 +171,6 @@ print(f"(Transpiled) Total 2Q gates: {transpiled_circuit.num_nonlocal_gates()}")
 
 # Initialize
 objective_func_vals_lc = []
-list_reduced_circuit = []
 params = list(qaoa_ansatz.parameters)
 
 def compute_light_cone_circuits(ansatz, hamiltonian):
@@ -364,23 +363,24 @@ plt.show()
 
 # %% =================== RUN THE SAMPLER (simulation) ===================
 
-# opt_params = np.random.uniform(0, 2*np.pi, size=2*p)
+#opt_params = np.random.uniform(0, 2*np.pi, size=2*p)
 
 print("Running the sampler.")
 
 if light_cone:
-    opt_circuit_lc = transpiled_circuit.assign_parameters(result_lc.x)
+    # opt_circuit_lc = transpiled_circuit.assign_parameters(result_lc.x)
+    opt_circuit_lc = transpiled_circuit.assign_parameters([0.14032397, 31.41745053])
     opt_circuit_lc.measure_active()  # add measurement
     job_lc = sampler_mps.run([(opt_circuit_lc,)], shots=shots)
     counts_int_lc = job_lc.result()[0].data.meas.get_int_counts()
     counts_bin_lc = job_lc.result()[0].data.meas.get_counts()
 
-# if full_circuit_optimization:
-#     opt_circuit_reg = transpiled_circuit.assign_parameters(result_reg.x)
-#     opt_circuit_reg.measure_active()  # add measurement
-#     job_reg = sampler_mps.run([(opt_circuit_reg,)], shots=shots)
-#     counts_int_reg = job_reg.result()[0].data.meas.get_int_counts()
-#     counts_bin_reg = job_reg.result()[0].data.meas.get_counts()
+if full_circuit_optimization:
+    opt_circuit_reg = transpiled_circuit.assign_parameters(result_reg.x)
+    opt_circuit_reg.measure_active()  # add measurement
+    job_reg = sampler_mps.run([(opt_circuit_reg,)], shots=shots)
+    counts_int_reg = job_reg.result()[0].data.meas.get_int_counts()
+    counts_bin_reg = job_reg.result()[0].data.meas.get_counts()
 
 
 #%% ======================== POST-PROCESS RESULTS ========================
@@ -418,7 +418,7 @@ print(f"Best value: {best_value}")
 aprox_ratio = compute_approximate_ratio(dict_bit_values_lc, value_opt)
 
 
-# %%
+#%%
 
 print("\nGreedy Warm Start Solution")
 
@@ -502,31 +502,61 @@ plt.grid(True)
 plt.show()
 
 # %%
+#objective_func_vals_lc = []
+list_reduced_circuit = []
+params = list(qaoa_ansatz.parameters)
 
-plt.figure(figsize=(8, 5))
-for i in range(1,8):
-    for j in range(1,8):
-        objective_func_vals = [] 
-        params = [np.pi/i, 2*np.pi /j] * p
-        result_reg = minimize(
-        cost_func_estimator,
+mapped_H_for_lc = cost_hamiltonian.apply_layout(transpiled_circuit.layout)
+lc_data = compute_light_cone_circuits(transpiled_circuit, mapped_H_for_lc) # Pass the same circuit
+
+plt.figure(figsize=(30, 5))
+x_vals= []
+y_vals = []
+max_iter = 8
+for i in range(max_iter):
+    for j in range(max_iter):
+        objective_func_vals_lc= [] 
+        init_params = [i*np.pi, j*2*np.pi] * p
+        # Optimize
+        result_lc = minimize(
+        cost_func_lightcone,
         init_params,
-        args=(transpiled_circuit, cost_hamiltonian, estimator_mps),
+        args=(transpiled_circuit, mapped_H_for_lc, estimator_mps, lc_data),
         method="COBYLA",
-        bounds=[(0, np.pi), (0, 2*np.pi)] * (len(init_params)//2),
+        bounds=[(0, np.pi*max_iter), (0, 2*np.pi*max_iter)] * p,
         tol=1e-6,
-        options={"maxiter": 150,  "disp": True},  
-        callback=None,
+        options={"maxiter":50, "disp":True},
+    # rhobeg=0.1, # parameter to play with
+        callback=lambda xk: print(f"Iteration {len(objective_func_vals_lc)}: Current params = {xk}"),
         )
+        # init_params = [np.pi/i, 2*np.pi /j] * p
+        # result_reg = minimize(
+        # cost_func_estimator,
+        # init_params,
+        # args=(transpiled_circuit, cost_hamiltonian, estimator_mps),
+        # method="COBYLA",
+        # bounds=[(0, np.pi), (0, 2*np.pi)] * (len(init_params)//2),
+        # tol=1e-6,
+        # options={"maxiter": 150,  "disp": True},  
+        # callback=None,
+        # )
+        y_vals.append(max(objective_func_vals_lc))
+        x_vals.append((result_lc.x))
+
     
     
-    plt.plot([(i,j)], max((objective_func_vals_lc)),marker='x')
-    plt.xlabel("Iteration")
-    plt.ylabel("Cost Function Value")
-    plt.title("Evolution of the Cost Function per Iteration")
-    plt.grid(True)
-    plt.legend()
+x_positions = list(range(len(x_vals)))  # numeric x positions
+x_labels_str = [str(t) for t in x_vals] 
+plt.xticks(x_positions, x_labels_str)
+plt.plot(y_vals,marker='x')
+plt.xlabel("initial params")
+plt.ylabel("Cost Function Value")
+plt.title("Max of Cost Function for different params")
+plt.grid(True)
+#plt.legend()
 plt.show()
 
 
+#%%
+x_vals[:6]
 # %%

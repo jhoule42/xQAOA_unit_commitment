@@ -48,14 +48,14 @@ class QKPOptimizer:
     def apply_cost_unitary(self, qc, gamma, return_circ=False):
         """Applies the cost unitary UC(γ) to the quantum circuit."""
         for i, value in enumerate(self.v):
-            qc.rz(-2 * gamma * value, i)
+            qc.rz(-gamma * value, i)
         if return_circ:
             return qc
         
     def generate_cost_unitary(self, gamma):
         qc = QuantumCircuit(self.n)
         for i, value in enumerate(self.v):
-            qc.rz(-2 * gamma * value, i)
+            qc.rz(-gamma * value, i)
         return qc
     
 
@@ -148,10 +148,12 @@ class QKPOptimizer:
         """
         rp12 = self.Rp12(p1, p2, p2_given_1, p2_given_not_1)
         circuit = QuantumCircuit(2)
-        circuit.compose(rp12, inplace=True)
+        #circuit.compose(rp12, inplace=True)
+        circuit.compose(rp12.inverse(), inplace=True)
         circuit.rz(-2 * beta, 0)
         circuit.rz(-2 * beta, 1)
-        circuit.compose(rp12.inverse(), inplace=True)
+        circuit.compose(rp12, inplace=True)
+        #circuit.compose(rp12.inverse(), inplace=True)
         return circuit
         
 

@@ -469,34 +469,34 @@ def get_weight(bitstring, w, bit_mapping="regular"):
         raise ValueError("Invalid bit_mapping mode. Use 'regular' or 'inverse'.")
     
 
-def convert_bitstring_to_values(counts, v, w, c, filter_invalid_solutions=True):
-    dict_bit_values = {}
+# def convert_bitstring_to_values(counts, v, w, c, filter_invalid_solutions=True):
+#     dict_bit_values = {}
     
-    for bitstring, count in counts.items():
+#     for bitstring, count in counts.items():
 
-        if filter_invalid_solutions:
-            if get_weight(bitstring, w) <= c:
-                value = get_value(bitstring, v)
+#         if filter_invalid_solutions:
+#             if get_weight(bitstring, w) <= c:
+#                 value = get_value(bitstring, v)
 
-                # If the value already exist
-                if value in dict_bit_values:
-                    new_count = dict_bit_values[value] + count
-                    dict_bit_values[value] = new_count
+#                 # If the value already exist
+#                 if value in dict_bit_values:
+#                     new_count = dict_bit_values[value] + count
+#                     dict_bit_values[value] = new_count
 
-                else:
-                    dict_bit_values[value] = count
-        else:
-            value = get_value(bitstring, v)
+#                 else:
+#                     dict_bit_values[value] = count
+#         else:
+#             value = get_value(bitstring, v)
 
-            # If the value already exist
-            if value in dict_bit_values:
-                new_count = dict_bit_values[value] + count
-                dict_bit_values[value] = new_count
+#             # If the value already exist
+#             if value in dict_bit_values:
+#                 new_count = dict_bit_values[value] + count
+#                 dict_bit_values[value] = new_count
 
-            else:
-                dict_bit_values[value] = count
+#             else:
+#                 dict_bit_values[value] = count
 
-    return dict_bit_values
+#     return dict_bit_values
 
 def convert_bitstring_to_values(counts, v, w, c, filter_invalid_solutions=True):
     dict_bit_values = {}
