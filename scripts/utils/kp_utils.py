@@ -19,9 +19,9 @@ def generate_inversely_strongly_correlated(n=10):
     return values, weights
 
 
-def generate_profit(n=10):
+def generate_profit(n=10, d=3):
     weights = np.random.randint(1, 1001, n)
-    values = 3 * np.ceil(weights / 3).astype(int)
+    values = d * np.ceil(weights / d).astype(int)
     return values, weights
 
 
@@ -469,6 +469,7 @@ def get_weight(bitstring, w, bit_mapping="regular"):
         raise ValueError("Invalid bit_mapping mode. Use 'regular' or 'inverse'.")
     
 
+<<<<<<< HEAD
 # def convert_bitstring_to_values(counts, v, w, c, filter_invalid_solutions=True):
 #     dict_bit_values = {}
     
@@ -497,6 +498,8 @@ def get_weight(bitstring, w, bit_mapping="regular"):
 #                 dict_bit_values[value] = count
 
 #     return dict_bit_values
+=======
+>>>>>>> main
 
 def convert_bitstring_to_values(counts, v, w, c, filter_invalid_solutions=True):
     dict_bit_values = {}
@@ -511,6 +514,9 @@ def convert_bitstring_to_values(counts, v, w, c, filter_invalid_solutions=True):
         else:
             value = get_value(bitstring, v)
             dict_bit_values[value] = dict_bit_values.get(value, 0) + count
+
+    if not dict_bit_values:
+        print("No valid solutions found!")
 
     return dict_bit_values
 
