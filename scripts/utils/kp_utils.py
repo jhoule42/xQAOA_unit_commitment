@@ -498,9 +498,9 @@ def compute_approximate_ratio(dict_bit_values, value_opt):
 
     # sum all the counts in the histogram of valid solutions
     total_valid_shots = sum(dict_bit_values.values())
-    unnorm_aprox_ratio = total / (total_valid_shots * value_opt)
+    norm_aprox_ratio = total / (total_valid_shots * value_opt)
 
-    return unnorm_aprox_ratio, total_valid_shots
+    return norm_aprox_ratio, total_valid_shots
 
 def probabilty_success(dict_bit_values, optimal_value):
     """ Compute the probability of sucess."""
