@@ -1,8 +1,0 @@
-{
-    "terminal.integrated.suggest.enabled": true,
-    "python.analysis.autoImportCompletions": true,
-    "editor.quickSuggestions": {
-        "comments": "on",
-        "strings": "on"
-    }
-}
